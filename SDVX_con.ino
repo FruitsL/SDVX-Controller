@@ -1,59 +1,72 @@
-#include <Keyboard.h>
+#include <HID-Project.h>
 #include <Encoder.h>
-#define ENC_TIME 70
+#define ENC_TIME 80
 
-int btnPin[7] = {10, 9, 8, 7, 6, 5, 4};
-char btnChar[7] = {KEY_RETURN, 'm', 'c', 'k', 'j', 'f', 'd'};
-int btnHold[7] = {0, 0, 0, 0, 0, 0, 0};
+// 로티러 엔코더
 Encoder leftEnc(0, 1);
 Encoder rightEnc(2, 3);
-long oldPos[2] = {0, 0};
-long newPos[2] = {0, 0};
-char encChar[4] = {'a', 's', 'l', ';'};
-int encHold[2] = {0, 0};
+long pos = 0;
+long encCheck[2] = {0, 0};
+long encDir[2] = {0, 0};
 long encTime[2] = {0, 0};
+
+// 버튼
+int ledPin[7] = {4, 6, 8, 16, 15, 19, 21};
+int btnPin[7] = {5, 7, 9, 10, 14, 18, 20};
+int btnCheck[7] = {0, 0, 0, 0, 0, 0, 0};
+
+// for 변수
 int i = 0;
 
+/* 입력키 : 본인의 컨트롤러에 맞게 변경 */
+char btnChar[7] = {'\n', 'c', 'm', 'd', 'f', 'j', 'k'};
+char encChar[4] = {';', 'l', 's', 'a'};
+
 void setup() {
-  for (i = 0; i < 7; i++) {
-    pinMode(i, INPUT);
+  for(i=0; i<7; i++) {
+    pinMode(ledPin[i], OUTPUT);
+    pinMode(btnPin[i], INPUT);
   }
 }
 
 void loop() {
-  for (i = 0; i < 7; i++) {
-    if (btnHold[i] != digitalRead(btnPin[i])) {
-      btnHold[i] = (btnHold[i] + 1) % 2;
-      if (btnHold[i]) { // 버튼을 누른 경우
-        Keyboard.press(btnChar[i]);
-      } else { // 버튼을 뗀 경우
-        Keyboard.release(btnChar[i]);
+  /* 버튼 인식 */
+  for(i=0; i<7; i++) {
+    if(btnCheck[i] != digitalRead(btnPin[i])) {
+      btnCheck[i] = (btnCheck[i] + 1) % 2;
+      if(btnCheck[i]) {
+        NKROKeyboard.press(btnChar[i]);
+      } else {
+        NKROKeyboard.release(btnChar[i]);
       }
+      digitalWrite(ledPin[i], btnCheck[i] ? HIGH : LOW);
     }
   }
 
-  for (i = 0; i < 2; i++) {
-    newPos[i] = i ? rightEnc.read() / 4 : leftEnc.read() / 4;
-    if (newPos[i] != oldPos[i]) {
-      if(oldPos[i] < newPos[i]) { // 오른쪽
-        if(encHold[i] != 1) {
-          Keyboard.press(encChar[i * 2 + 1]);
-          Keyboard.release(encChar[i * 2]);
-          encHold[i] = 1;
-        }
-      } else if(oldPos[i] > newPos[i]) { // 왼쪽
-        if(encHold[i] != -1) {
-          Keyboard.press(encChar[i * 2]);
-          Keyboard.release(encChar[i * 2 + 1]);
-          encHold[i] = -1;
-        }
+  /* 노브 인식 */
+  for(i=0; i<2; i++) {
+    pos = (i ? leftEnc.read() : rightEnc.read()) / 4;
+    if(encCheck[i] < pos) { // 오른쪽
+      if(encDir[i] != 1) {
+        NKROKeyboard.press(encChar[i * 2]);
+        NKROKeyboard.release(encChar[i * 2 + 1]);
+        encDir[i] = 1;
       }
-      encTime[i] = millis();
-      oldPos[i] = newPos[i];
-    } else if(encHold[i] != 0 && encTime[i] + ENC_TIME < millis()) {
-      Keyboard.release(encChar[i * 2]);
-      Keyboard.release(encChar[i * 2 + 1]);
-      encHold[i] = 0;
+    } else if(encCheck[i] > pos) { // 왼쪽
+      if(encDir[i] != -1) {
+        NKROKeyboard.press(encChar[i * 2 + 1]);
+        NKROKeyboard.release(encChar[i * 2]);
+        encDir[i] = -1;
+      }
+    } else {
+      if(encDir[i]) {
+        encTime[i] = millis() + ENC_TIME;
+        encDir[i] = 0;
+      } else if(encTime[i] < millis()) {
+        NKROKeyboard.release(encChar[i * 2]);
+        NKROKeyboard.release(encChar[i * 2 + 1]);
+      }
     }
+    encCheck[i] = pos;
   }
 }
